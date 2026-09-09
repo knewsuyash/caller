@@ -20,8 +20,9 @@ const BACKEND_URL = getBackendUrl();
 
 export default function WorkspacePage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('Overview');
-  const [activeEntity, setActiveEntity] = useState('');
+  const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState('Insights');
+  const [activeEntity, setActiveEntity] = useState('VED');
   const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'connected' | 'error'>('idle');
   const [callSid, setCallSid] = useState<string | null>(null);
   const [transcripts, setTranscripts] = useState<any[]>([]);
@@ -34,6 +35,7 @@ export default function WorkspacePage() {
   const [liveCalls, setLiveCalls] = useState<any[]>([]);
 
   useEffect(() => {
+    setMounted(true);
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
 
@@ -179,7 +181,7 @@ export default function WorkspacePage() {
     setCallSid(null);
     setTranscripts([]);
     setErrorMsg('');
-    setActiveTab('Calls');
+    setActiveTab('Operations');
 
     try {
       const response = await fetch(`${BACKEND_URL}/call/outbound`, {
@@ -257,6 +259,10 @@ export default function WorkspacePage() {
   const handleNewEntity = () => {
     setIsModalOpen(true);
   };
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden bg-black">

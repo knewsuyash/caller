@@ -48,31 +48,30 @@ async function getLLMResponse(historyTurns, newTranscript, memory = [], knowledg
   }
   
   if (knowledge && knowledge.length > 0) {
-    const knowledgeString = knowledge.map(k => `[${k.title}] ${k.content}`).join('\n\n');
+    const knowledgeString = knowledge.map(k => `[DOCUMENT: ${k.title}]\n${k.content}`).join('\n\n');
     contextSection += `### MANDATORY DATA ROOM KNOWLEDGE ###
-The following facts are the ABSOLUTE SOURCE OF TRUTH for this call. 
-If these facts contradict your general knowledge or previous summaries, the DATA ROOM IS CORRECT.
+The following documents are the ONLY verified source of truth for answering caller queries:
 
-DATA ROOM CONTENT:
 ${knowledgeString}
 
-STRICT OPERATIONAL RULES:
-1. **NO REDIRECTION**: If an answer (e.g., fee amounts, dates, specific names) is in the DATA ROOM, you MUST provide it directly. Never tell the user to "check the website", "consult a human", or "I don't have that info".
-2. **ACTIVE CORRECTION**: If you previously said you didn't have information, but it is now in the DATA ROOM, say: "Wait, I just checked my updated records. The [Information] is [Fact]."
-3. **MMMUT CONTEXT**: If the data room mentions MMMUT, you are an Admission Bot specifically for MMMUT (Madan Mohan Malaviya University of Technology).
+STRICT ANSWERING BOUNDARIES:
+1. You MUST answer the user's questions ONLY from the information explicitly contained in the above DATA ROOM documents.
+2. If the answer to the caller's question is NOT found in the documents above, you MUST answer: "I'm sorry, that information is not available in my current records."
+3. Never guess, assume, speculate, or introduce external facts not present in these documents.
+4. Keep the answer concise (1 to 2 sentences maximum, natural conversation).
+5. Do NOT say "Thank you" or goodbye unless the caller has explicitly thanked you or asked to end the conversation.
 #######################################\n\n`;
 
-    // NUCLEAR OPTION: Inject knowledge as a grounding turn in conversation history
     groundingMessages.push({ 
         role: "user", 
-        content: `System Note: For this call, use the following verified company context: ${knowledgeString.substring(0, 1000)}` 
+        content: `System Instructions: Use the following verified institutional document facts to answer all questions: \n${knowledgeString.substring(0, 4000)}` 
     });
     groundingMessages.push({ 
         role: "assistant", 
-        content: "Understood. I have access to these verified facts now. I will provide direct answers on fees, packages, and other details from this data and will not redirect the caller to websites or humans for these specific items." 
+        content: "Understood. I will answer questions strictly and solely using these verified document records. If any detail is not in these documents, I will state that the information is not available in my current records and will never guess or invent facts." 
     });
   } else {
-    contextSection += `### (Notice: No specific company context found for this call session.) ###\n\n`;
+    contextSection += `### (Notice: No uploaded knowledge documents available. State that information is not available in records.) ###\n\n`;
   }
 
   if (memory && memory.length > 0) {
@@ -80,7 +79,24 @@ STRICT OPERATIONAL RULES:
     contextSection += `### PREVIOUS INTERACTION MEMORY ###\nHistory of past calls with this user:\n${memoryString}\n\nNOTE: If the current DATA ROOM knowledge contradicts this history, strictly use the DATA ROOM facts.\n#######################################\n\n`;
   }
 
-  const dynamicSystemPrompt = contextSection + SYSTEM_PROMPT.replace('Company Name', 'the organization');
+  const { getVedPrompt } = require('../state/ved');
+  const activePromptTemplate = instructions || getVedPrompt() || SYSTEM_PROMPT.replace('Company Name', 'the organization');
+
+  const jsonFormatRequirement = `
+MANDATORY RESPONSE FORMAT:
+You MUST respond with a valid JSON object matching this exact structure:
+{
+  "spoken": "The exact text to speak aloud to the caller (1-2 sentences maximum, natural conversation)",
+  "intent": "primary intent label",
+  "entities": ["list", "of", "key", "entities"],
+  "sentiment": "positive | neutral | negative | frustrated | satisfied",
+  "action_item": null,
+  "language": "hi | en | hinglish"
+}
+Do not include markdown code block ticks (\`\`\`json). Output raw JSON only.
+`;
+
+  const dynamicSystemPrompt = `${contextSection}### VED SYSTEM BEHAVIOR ###\n${activePromptTemplate}\n\n${jsonFormatRequirement}`;
 
   // Build the message payload starting with Grounding Turn if available
   const messages = [
@@ -105,41 +121,52 @@ STRICT OPERATIONAL RULES:
     console.log(`[LLM] Grounding turn injected into chat history.`);
   }
 
-  try {
-    const completion = await groq.chat.completions.create({
-      messages,
-      model: "groq/compound",
-      response_format: { type: "json_object" },
-      temperature: 0.3, // Further reduced for maximum factual lock-in
-      max_completion_tokens: 150
-    });
+  const candidateModels = [
+    "qwen/qwen3.8-27b",
+    "groq/compound-mini",
+    "openai/gpt-oss-120b"
+  ];
 
-    const responseContent = completion.choices[0]?.message?.content;
-    console.log(`[LLM] Raw Response: "${responseContent?.substring(0, 50)}..."`);
-    
-    if (!responseContent) {
-       console.warn("[LLM] Empty response from Groq.");
-       return { spoken: "Mujhe aapki aawaz nahi aa rahi hai, kya aap wahan hain?", language: 'hi' };
-    }
-
+  for (const model of candidateModels) {
     try {
-      const parsed = JSON.parse(responseContent);
-      return parsed;
-    } catch (e) {
-      console.error("[LLM] JSON Parse Error:", e.message);
-      return { spoken: "Something went wrong in my logic. Please try again.", language: 'en' };
+      const completion = await groq.chat.completions.create({
+        messages,
+        model,
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+        max_completion_tokens: 120
+      }, { timeout: 3500 });
+
+      const responseContent = completion.choices[0]?.message?.content;
+      console.log(`[LLM] Raw Response from ${model}: "${responseContent?.substring(0, 60)}..."`);
+      
+      if (!responseContent) {
+        console.warn(`[LLM] Empty response from ${model}`);
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(responseContent);
+        if (parsed.spoken) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error(`[LLM] JSON Parse Error on ${model}:`, e.message);
+      }
+    } catch (error) {
+      console.warn(`[CALLER AI] Model ${model} failed:`, error.message);
     }
-  } catch (error) {
-    console.error("[CALLER AI] Error:", error);
-    return {
-      spoken: "I'm sorry, I didn't quite catch that. Could you repeat?",
-      intent: "unknown",
-      entities: [],
-      sentiment: "neutral",
-      action_item: null,
-      language: "en"
-    };
   }
+
+  // Fallback if all API attempts failed
+  return {
+    spoken: "Main samajh nahi paayi, kya aap dobara bol sakte hain?",
+    intent: "unknown",
+    entities: [],
+    sentiment: "neutral",
+    action_item: null,
+    language: "hinglish"
+  };
 }
 
 async function summarizeCall(fullTranscript) {
@@ -161,7 +188,7 @@ Return a JSON object:
         { role: "system", content: SYS_PROMPT },
         { role: "user", content: "Transcript:\n" + JSON.stringify(fullTranscript, null, 2) }
       ],
-      model: "groq/compound",
+      model: "qwen/qwen3.8-27b",
       response_format: { type: "json_object" },
       temperature: 0.2
     });

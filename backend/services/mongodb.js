@@ -136,24 +136,20 @@ async function getAllAnalytics() {
  */
 async function getKnowledge(entity) {
   try {
-    if (entity && entity !== 'unknown') {
+    if (entity && entity !== 'unknown' && entity !== 'ALL') {
       return await prisma.knowledge.findMany({
         where: {
-          entity: {
-            equals: entity,
-            mode: 'insensitive'
-          }
+          OR: [
+            { entity: { equals: entity, mode: 'insensitive' } },
+            { entity: null },
+            { entity: "" },
+            { entity: { equals: 'VED', mode: 'insensitive' } }
+          ]
         },
         orderBy: { created_at: 'desc' }
       });
     } else {
       return await prisma.knowledge.findMany({
-        where: {
-          OR: [
-            { entity: null },
-            { entity: "" }
-          ]
-        },
         orderBy: { created_at: 'desc' }
       });
     }

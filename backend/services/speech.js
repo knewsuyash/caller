@@ -7,8 +7,7 @@ async function getGroqSTT(pcm16WavBuffer) {
   const form = new FormData();
   const blob = new Blob([pcm16WavBuffer], { type: 'audio/wav' });
   form.append('file', blob, 'audio.wav');
-  form.append('model', 'whisper-large-v3-turbo'); // Fast and excellent at Hindi/English
-  form.append('prompt', 'Hindi and English mixed Hinglish.'); 
+  form.append('model', 'whisper-large-v3-turbo');
   form.append('response_format', 'json');
 
   try {
@@ -27,7 +26,7 @@ async function getGroqSTT(pcm16WavBuffer) {
     }
     
     console.log(`[Groq STT] Response received successfully. Transcript: "${data.text}"`);
-    return { transcript: data.text, language_code: 'hi' }; // Force 'hi' so LLM responds freely in Hinglish
+    return { transcript: data.text || '', language_code: 'en' };
   } catch (err) {
     console.error("Groq STT Error:", err);
     return null;

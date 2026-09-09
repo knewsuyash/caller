@@ -66,7 +66,7 @@ function handleStreamConnection(ws) {
   let audioBuffer = [];
   let isAIProcessing = false;
   let silenceTimer = null;
-  const SILENCE_THRESHOLD_MS = 800; // Trigger STT after 0.8s of no audio for near real-time response
+  const SILENCE_THRESHOLD_MS = 550; // Optimized for snappy 0.55s turn-taking without awkward pauses
   let safetyUnlockTimeout = null;
 
   const resetAIState = (reason = '') => {
@@ -155,15 +155,19 @@ function handleStreamConnection(ws) {
       for (let i = 0; i < payloadBuffer.length; i++) {
         let val = payloadBuffer[i];
         let amp = val < 128 ? 127 - val : 255 - val;
-        if (amp > 20) loudCount++;
+        if (amp > 22) loudCount++;
       }
 
       // Only reset timer if active loud speech is detected
-      if (loudCount > 15) {
+      if (loudCount > 18) {
         audioBuffer.push(msg.media.payload);
         clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
-          processUtterance();
+          if (audioBuffer.length >= 6) { // Ensure at least ~120ms of actual voice audio
+            processUtterance();
+          } else {
+            audioBuffer = [];
+          }
         }, SILENCE_THRESHOLD_MS);
       } else if (audioBuffer.length > 0) {
         // Add trailing silence to the utterance, but let timer naturally expire
@@ -210,11 +214,14 @@ function handleStreamConnection(ws) {
       
       const cleanTranscript = sttResult.transcript.trim().toLowerCase().replace(/[^\w\s]/g, '');
       const hallucinations = [
-        "thanks for watching", "thank you for watching", "please subscribe"
+        "thanks for watching", "thank you for watching", "please subscribe", 
+        "thank you", "thanks", "thank you very much", "bye", "you", "so", "oh"
       ];
+
+      // If audio chunk is short / silent and Whisper outputs a typical isolated phantom token, ignore it
       if (hallucinations.includes(cleanTranscript) || cleanTranscript === '') {
-         console.log(`[${callSid}] Ignoring known Whisper hallucination: "${sttResult.transcript}"`);
-         resetAIState('Whisper hallucination detected on silence');
+         console.log(`[${callSid}] Ignoring known Whisper hallucination or background artifact: "${sttResult.transcript}"`);
+         resetAIState('Whisper hallucination/background noise detected');
          return;
       }
       
@@ -238,14 +245,23 @@ function handleStreamConnection(ws) {
 
       const session = getCallSession(callSid);
 
+      // Ensure fresh VED knowledge from database is always available
+      let activeKnowledge = (session && session.knowledge && session.knowledge.length > 0) 
+        ? session.knowledge 
+        : await getKnowledge(session?.entity || 'VED');
+      
+      if (!activeKnowledge || activeKnowledge.length === 0) {
+        activeKnowledge = await getKnowledge();
+      }
+
       // 3. LLM (CALLER AI)
       console.log(`\n--- [${callSid}] LLM PROCESSING ---`);
-      console.log(`[${callSid}] Querying CALLER AI LLM...`);
+      console.log(`[${callSid}] Querying CALLER AI LLM (Active knowledge fragments: ${activeKnowledge.length})...`);
       const aiResponse = await getLLMResponse(
         session.turns, 
         sttResult.transcript, 
         session.memory || [],
-        session.knowledge || [],
+        activeKnowledge,
         session.instructions || ''
       );
       console.log(`[${callSid}] LLM Answer Object:`, JSON.stringify(aiResponse, null, 2));

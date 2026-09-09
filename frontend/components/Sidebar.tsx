@@ -2,6 +2,7 @@ import React from 'react';
 import { 
   BarChart3, 
   Settings2, 
+  BookOpen,
   LayoutDashboard, 
   PhoneCall, 
   Users2, 
@@ -44,71 +45,31 @@ const Sidebar: React.FC<SidebarProps> = ({
   
   const menuConfig = [
     { 
-      name: 'Overview', 
-      icon: LayoutDashboard, 
-      desc: 'Executive command center'
-    },
-    { 
-      name: 'Calls', 
-      icon: PhoneCall, 
-      desc: 'Operations queue',
-      subpages: ['Live Calls', 'Recent Calls', 'Scheduled Calls', 'Recordings']
-    },
-    { 
-      name: 'AI Agents', 
-      icon: Sparkles, 
-      desc: 'Virtual agents builder',
-      subpages: ['My Agents', 'Agent Builder', 'Voice Library']
-    },
-    { 
-      name: 'Contacts', 
-      icon: Users2, 
-      desc: 'CRM lead database'
-    },
-    { 
-      name: 'Campaigns', 
-      icon: TrendingUp, 
-      desc: 'Outbound calling dialer'
-    },
-    { 
-      name: 'Analytics', 
+      name: 'Insights', 
       icon: BarChart3, 
-      desc: 'Business intelligence'
+      desc: 'What is happening?'
     },
     { 
-      name: 'Automations', 
-      icon: Activity, 
-      desc: 'Trigger actions & webhooks'
+      name: 'Documents', 
+      icon: BookOpen, 
+      desc: 'What does VED know?'
     },
     { 
-      name: 'Integrations', 
-      icon: Binary, 
-      desc: 'Connect CRM & API tools'
-    },
-    { 
-      name: 'Workspace', 
-      icon: Building2, 
-      desc: 'Manage team and billing'
-    },
-    { 
-      name: 'Settings', 
-      icon: Settings, 
-      desc: 'Central configuration'
+      name: 'Operations', 
+      icon: Settings2, 
+      desc: 'How is VED running?'
     }
   ];
 
   const handleParentClick = (item: any) => {
-    if (item.subpages && item.subpages.length > 0) {
-      // Set to first subpage
-      setActiveTab(`${item.name} - ${item.subpages[0]}`);
-    } else {
-      setActiveTab(item.name);
-    }
+    setActiveTab(item.name);
   };
 
   const isItemActive = (item: any) => {
     if (activeTab === item.name) return true;
-    if (activeTab.startsWith(`${item.name} - `)) return true;
+    if (activeTab === 'Overview' && item.name === 'Insights') return true;
+    if (activeTab === 'Dashboard' && item.name === 'Insights') return true;
+    if (activeTab === 'Calls' && item.name === 'Operations') return true;
     return false;
   };
 
@@ -117,56 +78,39 @@ const Sidebar: React.FC<SidebarProps> = ({
       
       {/* Brand Header */}
       <div className="p-6 pb-4 flex items-center justify-between shrink-0 border-b border-white/5">
-        <div className="flex items-center gap-1.5 cursor-pointer">
-          <span className="font-extrabold text-[15px] tracking-tight text-white font-display">caller.work</span>
-          <span className="text-[15px] font-black text-emerald-400 leading-none">•</span>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('Insights')}>
+          <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[11px] font-black text-emerald-400 font-mono">
+            V
+          </div>
+          <span className="font-extrabold text-[15px] tracking-tight text-white font-display">VED</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 ml-1">Voice AI</span>
         </div>
       </div>
 
       {/* Main Nav Items (Scrollable when overflow) */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-1.5 scrollbar-hide">
-        <nav className="space-y-1">
+      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-2 scrollbar-hide">
+        <nav className="space-y-1.5">
           {menuConfig.map((item) => {
             const active = isItemActive(item);
             return (
               <div key={item.name} className="space-y-1">
                 <button
                   onClick={() => handleParentClick(item)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl transition-all cursor-pointer ${
                     active 
-                      ? 'bg-white/10 text-white font-bold' 
-                      : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-white/10 text-white font-bold border border-white/10 shadow-sm' 
+                      : 'text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <item.icon className={`w-4.5 h-4.5 ${active ? 'text-white' : 'text-neutral-500'}`} />
-                    <span className="text-[12px] font-semibold tracking-tight">{item.name}</span>
+                    <item.icon className={`w-4.5 h-4.5 ${active ? 'text-emerald-400' : 'text-neutral-500'}`} />
+                    <div className="text-left leading-none">
+                      <span className="text-xs font-bold tracking-tight block">{item.name}</span>
+                      <span className="text-[9px] text-neutral-500 font-medium mt-1 block">{item.desc}</span>
+                    </div>
                   </div>
-                  {active && <ArrowUpRight className="w-3 h-3 text-neutral-500" />}
+                  {active && <ArrowUpRight className="w-3 h-3 text-emerald-400" />}
                 </button>
-
-                {/* Render nested sub-items if parent is active */}
-                {active && item.subpages && (
-                  <div className="pl-10 pr-2 py-1 space-y-1.5">
-                    {item.subpages.map((sub) => {
-                      const subTabKey = `${item.name} - ${sub}`;
-                      const isSubActive = activeTab === subTabKey;
-                      return (
-                        <button
-                          key={sub}
-                          onClick={() => setActiveTab(subTabKey)}
-                          className={`w-full text-left py-1 px-2 rounded-lg text-[11px] font-medium transition-all cursor-pointer block ${
-                            isSubActive 
-                              ? 'text-white font-semibold' 
-                              : 'text-neutral-500 hover:text-white'
-                          }`}
-                        >
-                          {sub}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             );
           })}

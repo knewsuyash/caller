@@ -1,5 +1,8 @@
 import React from 'react';
 import { Settings as SettingsIcon, ChevronDown, Sparkles, Search, Bell, PhoneCall } from 'lucide-react';
+import VedInsights from './ved/VedInsights';
+import VedDocuments from './ved/VedDocuments';
+import VedOperations from './ved/VedOperations';
 import TabOverview from './TabOverview';
 import TabCalls from './TabCalls';
 import TabAgents from './TabAgents';
@@ -105,10 +108,10 @@ const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
             {/* Launch Call Button */}
             <button
-              onClick={() => setActiveTab('Calls - Live Calls')}
+              onClick={() => setActiveTab('Operations')}
               className="px-4 py-2 bg-white hover:bg-neutral-100 text-black text-[10px] font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 shadow-sm font-display cursor-pointer"
             >
-              <span>Launch Call</span>
+              <span>Operations Desk</span>
               <span className="text-xs">↗</span>
             </button>
           </div>
@@ -138,27 +141,24 @@ const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       )}
 
       {/* Workspace Active Views */}
-      <div className="flex-1 overflow-y-auto relative bg-black">
-        {/* Core Workspace Modules */}
-        {(mainPage === 'Dashboard' || mainPage === 'Overview') && (
-          <TabOverview
-            analyticsData={analyticsData}
-            callStatus={callStatus}
-            transcripts={transcripts}
-            entities={entities}
-            setActiveTab={setActiveTab}
+      <div className="flex-1 overflow-y-auto relative bg-[#070708]">
+        {/* Core VED Modules */}
+        {(mainPage === 'Insights' || mainPage === 'Dashboard' || mainPage === 'Overview') && (
+          <VedInsights
+            onQuickCall={() => setActiveTab('Operations')}
           />
         )}
-        {mainPage === 'Calls' && (
-          <TabCalls
+        {mainPage === 'Documents' && (
+          <VedDocuments />
+        )}
+        {(mainPage === 'Operations' || mainPage === 'Calls') && (
+          <VedOperations
             transcripts={transcripts}
             callStatus={callStatus}
             callSid={callSid}
             onCall={onCall}
             onHangup={onHangup}
             onMute={onMute}
-            activeSubpage={subpage}
-            liveCalls={liveCalls}
           />
         )}
         {mainPage === 'AI Agents' && (
